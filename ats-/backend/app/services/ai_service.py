@@ -1673,9 +1673,13 @@ async def parse_job_description(text: str) -> Dict[Any, Any]:
         except Exception as e:
             print(f"[JD PARSE] Ollama JD parsing error, falling back: {e}")
 
-    # 2) Fallback: spaCy heuristic parser (existing behavior)
+    # 2) Fallback: spaCy heuristic parser (existing behavior) with skill deduplication
     print("[JD PARSE] Using spaCy heuristic JD parser (fallback)")
-    return parse_text_with_spacy_heuristic(text, "jd")
+    result = parse_text_with_spacy_heuristic(text, "jd")
+    if isinstance(result, dict) and result.get("skills"):
+        from app.services.parse_store import deduplicate_skills
+        result["skills"] = deduplicate_skills(result["skills"])
+    return result
 
 
 async def score_resume_against_jd(

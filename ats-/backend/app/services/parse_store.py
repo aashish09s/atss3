@@ -14,23 +14,54 @@ def deduplicate_skills(skills):
     from difflib import SequenceMatcher
 
     def similarity(a, b):
-        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+        return SequenceMatcher(None, a, b).ratio()
+
+    def normalize(s):
+        # Remove brackets, lowercase, remove special chars
+        s = re.sub(r'\s*\(.*?\)', '', str(s)).strip().lower()
+        s = re.sub(r'[^a-z0-9\s]', '', s).strip()
+        return s
+
+    def is_abbrev_of(short, long):
+        # Check if short is abbreviation of long
+        # e.g. "ml" is abbrev of "machine learning"
+        if len(short) > 5:
+            return False
+        words = long.split()
+        initials = ''.join(w[0] for w in words if w)
+        return short == initials
 
     cleaned = []
     seen = []
 
     for skill in skills:
-        skill = re.sub(r'\s*\(.*?\)', '', str(skill)).strip()
-        normalized = skill.lower().strip()
+        norm = normalize(skill)
+        if not norm:
+            continue
 
         is_duplicate = False
-        for existing in seen:
-            if normalized in existing or existing in normalized or similarity(normalized, existing) > 0.85:
+        for i, existing in enumerate(seen):
+            if (
+                norm == existing
+                or norm in existing
+                or existing in norm
+                or similarity(norm, existing) > 0.82
+                or is_abbrev_of(norm, existing)
+                or is_abbrev_of(existing, norm)
+            ):
                 is_duplicate = True
+                # Keep longer/fuller version
+                if len(norm) > len(existing):
+                    seen[i] = norm
+                    # Update corresponding cleaned entry
+                    for j, c in enumerate(cleaned):
+                        if normalize(c) == existing:
+                            cleaned[j] = skill
+                            break
                 break
 
         if not is_duplicate:
-            seen.append(normalized)
+            seen.append(norm)
             cleaned.append(skill)
 
     return cleaned
