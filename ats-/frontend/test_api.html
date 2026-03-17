@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>Frontend API Connection Test</h1>
+    <button onclick="testHealth()">Test Health</button>
+    <button onclick="testSeedAdmin()">Test Seed Admin</button>
+    <button onclick="testLogin()">Test Login</button>
+    <div id="results"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        function log(message) {
+            document.getElementById('results').innerHTML += '<p>' + message + '</p>';
+        }
+
+        async function testHealth() {
+            log('Testing health endpoint...');
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                log('Health: ' + JSON.stringify(data));
+            } catch (error) {
+                log('Health Error: ' + error.message);
+            }
+        }
+
+        async function testSeedAdmin() {
+            log('Testing seed admin...');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/seed-admin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({confirm: true})
+                });
+                const data = await response.json();
+                log('Seed Admin: ' + JSON.stringify(data));
+            } catch (error) {
+                log('Seed Admin Error: ' + error.message);
+            }
+        }
+
+        async function testLogin() {
+            log('Testing login...');
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/issue-tokens`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'admin@company.com',
+                        password: 'Admin@4321'
+                    })
+                });
+                const data = await response.json();
+                log('Login: ' + JSON.stringify(data));
+            } catch (error) {
+                log('Login Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

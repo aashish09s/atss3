@@ -1,0 +1,94 @@
+{
+    "name": "Grammar Correction via Gemini",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "grammar-correct",
+          "responseMode": "onReceived",
+          "options": {}
+        },
+        "name": "Webhook (grammar-correct)",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [250, 300]
+      },
+      {
+        "parameters": {
+          "functionCode": "/* Build Gemini request payload. Incoming body expected JSON: { \"text\": \"...\" } */\nconst inputText = $json[\"body\"] && $json[\"body\"].text ? $json[\"body\"].text : ( $json.text || '' );\n\n// safe default\nif (!inputText) {\n  throw new Error('No text provided in POST body. Send JSON { \"text\": \"...\" }');\n}\n\n// Create the prompt: ask Gemini to correct grammar and punctuation, keep meaning.\nconst systemInstruction = \"You are an expert English editor. Correct grammar, punctuation, and improve clarity without changing the original meaning. Keep output concise and only return the corrected text.\";\n\nconst userMessage = `Correct the grammar and punctuation of the following text and return corrected text only:\\n\\n${inputText}`;\n\n// Build payload aligned to the Gemini REST examples (contents -> parts)\nconst payload = {\n  contents: [\n    {\n      role: 'user',\n      parts: [ { text: userMessage } ]\n    }\n  ],\n  // Lower temperature to make corrections deterministic\n  temperature: 0.0\n};\n\nreturn [{ json: { payload } }];"
+        },
+        "name": "Build Gemini Payload",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [520, 300]
+      },
+      {
+        "parameters": {
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+          "options": {},
+          "method": "POST",
+          "responseFormat": "json",
+          "jsonParameters": true,
+          "headerParametersJson": "{\n  \"x-goog-api-key\": \"{{$env.GEMINI_API_KEY}}\",\n  \"Content-Type\": \"application/json\"\n}",
+          "bodyParametersJson": "={{ $json.payload }}"
+        },
+        "name": "HTTP Request -> Gemini",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 1,
+        "position": [770, 300]
+      },
+      {
+        "parameters": {
+          "functionCode": "/* Extract corrected text from Gemini response.\n   Response structure may vary. We attempt common structure used by the Gemini generateContent responses.\n*/\n\nconst resp = $json;\nlet corrected = '';\n\n// Try common paths from Gemini output\ntry {\n  // Some responses return 'candidates' or 'outputs' or 'contents'\n  if (resp && resp.candidates && resp.candidates[0] && resp.candidates[0].content) {\n    corrected = resp.candidates[0].content;\n  } else if (resp && resp.contents && resp.contents[0] && resp.contents[0].parts && resp.contents[0].parts[0] && resp.contents[0].parts[0].text) {\n    corrected = resp.contents[0].parts[0].text;\n  } else if (resp && resp.output && resp.output[0] && resp.output[0].content) {\n    corrected = resp.output[0].content;\n  } else if (resp && resp.text) {\n    corrected = resp.text;\n  } else {\n    // fallback: stringify entire response so you can debug\n    corrected = JSON.stringify(resp);\n  }\n} catch (e) {\n  corrected = 'Error parsing Gemini response: ' + e.message;\n}\n\nreturn [ { json: { corrected } } ];"
+        },
+        "name": "Extract Corrected Text",
+        "type": "n8n-nodes-base.function",
+        "typeVersion": 1,
+        "position": [1020, 300]
+      },
+      {
+        "parameters": {
+          "responseCode": 200,
+          "responseData": "={{ { \"correctedText\": $json.corrected } }}",
+          "responseMode": "lastNode"
+        },
+        "name": "Respond to Webhook",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [1270, 300]
+      }
+    ],
+    "connections": {
+      "Webhook (grammar-correct)": {
+        "main": [
+          [
+            { "node": "Build Gemini Payload", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "Build Gemini Payload": {
+        "main": [
+          [
+            { "node": "HTTP Request -> Gemini", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "HTTP Request -> Gemini": {
+        "main": [
+          [
+            { "node": "Extract Corrected Text", "type": "main", "index": 0 }
+          ]
+        ]
+      },
+      "Extract Corrected Text": {
+        "main": [
+          [
+            { "node": "Respond to Webhook", "type": "main", "index": 0 }
+          ]
+        ]
+      }
+    },
+    "active": false,
+    "settings": {}
+  }
+  
