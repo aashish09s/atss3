@@ -1655,28 +1655,12 @@ async def parse_job_description(text: str) -> Dict[Any, Any]:
     Parse job description.
 
     Priority:
-    1. Try local Ollama model (JD-specific prompt) for rich structured output.
-    2. Fallback to existing spaCy + heuristic parser for reliability.
+    1. Use heuristic parser (fast + reliable).
     """
-    # 1) Try Ollama first (if enabled)
-    if OLLAMA_AVAILABLE and settings.ollama_enabled:
-        try:
-            jd_from_ollama = await asyncio.wait_for(
-                parse_jd_with_ollama(text),
-                timeout=getattr(settings, "ollama_timeout", 15),
-            )
-            if isinstance(jd_from_ollama, Dict) and jd_from_ollama.get("skills"):
-                print("[JD PARSE] Using Ollama JD parser output")
-                return jd_from_ollama
-        except asyncio.TimeoutError:
-            print("[JD PARSE] Ollama JD parsing timeout, falling back to spaCy heuristics")
-        except Exception as e:
-            print(f"[JD PARSE] Ollama JD parsing error, falling back: {e}")
-
-    # 2) Fallback: spaCy heuristic parser (existing behavior) with skill deduplication
-    print("[JD PARSE] Using spaCy heuristic JD parser (fallback)")
+    # Heuristic is primary — fast and reliable
+    print("[JD PARSE] Using heuristic JD parser (primary)")
     result = parse_text_with_spacy_heuristic(text, "jd")
-    if isinstance(result, dict) and result.get("skills"):
+    if result.get("skills"):
         from app.services.parse_store import deduplicate_skills
         result["skills"] = deduplicate_skills(result["skills"])
     return result
