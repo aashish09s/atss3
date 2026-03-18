@@ -101,11 +101,23 @@ class ResumeFilter:
                 skills_match[required_skill] = True
                 continue
             
-            # Partial match (for compound skills)
+            # Semantic match (abbreviation + fuzzy)
             partial_match = False
+            from difflib import SequenceMatcher
+            req = required_skill.lower()
             for resume_skill in resume_skills_lower:
-                if (required_skill.lower() in resume_skill or 
-                    resume_skill in required_skill.lower()):
+                if req in resume_skill or resume_skill in req:
+                    partial_match = True
+                    break
+                words = resume_skill.split()
+                if len(words) > 1 and req == ''.join(w[0] for w in words):
+                    partial_match = True
+                    break
+                words2 = req.split()
+                if len(words2) > 1 and resume_skill == ''.join(w[0] for w in words2):
+                    partial_match = True
+                    break
+                if SequenceMatcher(None, req, resume_skill).ratio() > 0.82:
                     partial_match = True
                     break
             
@@ -349,12 +361,12 @@ class ResumeMatcher:
         """
         def calculate_relevance_score(match_result: MatchResult) -> float:
             """Calculate overall relevance score for a match result."""
-            # Base similarity score (50% weight)
-            similarity_weight = 0.5
+            # Base similarity score (25% weight)
+            similarity_weight = 0.25
             similarity_score = match_result.similarity_score * similarity_weight
             
-            # Skills match score (30% weight)
-            skills_weight = 0.3
+            # Skills match score (55% weight)
+            skills_weight = 0.55
             if match_result.skills_match:
                 skills_score = sum(match_result.skills_match.values()) / len(match_result.skills_match)
             else:
@@ -362,7 +374,7 @@ class ResumeMatcher:
             skills_score *= skills_weight
             
             # Experience match score (20% weight)
-            experience_weight = 0.2
+            experience_weight = 0.20
             experience_score = 1.0 if match_result.experience_match else 0.5
             experience_score *= experience_weight
             

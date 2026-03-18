@@ -2864,12 +2864,23 @@ async def score_resume_with_ner_optimized(
     # Generate analysis
     analysis = generate_analysis(similarity_score, common_skills, missing_skills, resume_text)
     
-    # Use cached experience if available
-    if experience_cache:
-        experience_entries, experience_years = use_cached_or_extract_experience(resume_text, experience_cache)
-    else:
-        experience_entries = ner_info.get("experience", [])
-        experience_years = _calculate_experience_years_from_entries(experience_entries, resume_text)
+    # Use Ollama parsed years_experience directly (most accurate)
+    experience_entries = []
+    experience_years = 0.0
+    if parsed_resume_data:
+        ollama_years = parsed_resume_data.get("years_experience") or parsed_resume_data.get("experience_years")
+        if ollama_years is not None:
+            try:
+                experience_years = float(ollama_years)
+                print(f"[SCORE] Using Ollama years_experience: {experience_years}")
+            except:
+                pass
+    if experience_years == 0.0:
+        if experience_cache:
+            experience_entries, experience_years = use_cached_or_extract_experience(resume_text, experience_cache)
+        else:
+            experience_entries = ner_info.get("experience", [])
+            experience_years = _calculate_experience_years_from_entries(experience_entries, resume_text)
     
     # Use pre-extracted JD experience requirement
     if min_experience_required is None:
@@ -2897,13 +2908,35 @@ def _extract_skills_from_text(text: str) -> List[str]:
     return found_skills
 
 def _match_skills(resume_skills: List[str], jd_skills: List[str]) -> Tuple[List[str], List[str]]:
-    """Match resume skills with JD skills"""
-    resume_skills_lower = [s.lower() for s in resume_skills]
-    jd_skills_lower = [s.lower() for s in jd_skills]
-    
-    common = [s for s in resume_skills if s.lower() in jd_skills_lower]
-    missing = [s for s in jd_skills if s.lower() not in resume_skills_lower]
-    
+    from difflib import SequenceMatcher
+
+    def is_match(a: str, b: str) -> bool:
+        a, b = a.lower().strip(), b.lower().strip()
+        if a == b:
+            return True
+        if a in b or b in a:
+            return True
+        # Abbreviation check: "ml" matches "machine learning"
+        words_b = b.split()
+        if len(words_b) > 1 and a == "".join(w[0] for w in words_b if w):
+            return True
+        words_a = a.split()
+        if len(words_a) > 1 and b == "".join(w[0] for w in words_a if w):
+            return True
+        # Fuzzy match
+        if SequenceMatcher(None, a, b).ratio() > 0.82:
+            return True
+        return False
+
+    common: List[str] = []
+    missing: List[str] = []
+
+    for jd_skill in jd_skills:
+        if any(is_match(jd_skill, r) for r in resume_skills):
+            common.append(jd_skill)
+        else:
+            missing.append(jd_skill)
+
     return common, missing
 
 def _calculate_final_score(
@@ -2927,40 +2960,48 @@ def _calculate_final_score(
     
     # Experience match status
     experience_match_status = "unknown"
-    if min_experience_required is not None:
+
+    # If JD has no experience requirement — experience is irrelevant, give neutral score
+    if min_experience_required is None or min_experience_required == 0:
+        experience_bonus = 10  # neutral/slight positive
+        experience_match_status = "not_required"
+        if experience_years > 0:
+            experience_bonus = min(20, experience_years * 2)
+            experience_match_status = "bonus"
+    elif experience_years == 0:
+        # JD requires experience but candidate has none
+        gap = min_experience_required
+        if gap > 2:
+            experience_bonus = 0
+            experience_match_status = "poor"
+        else:
+            experience_bonus = 5
+            experience_match_status = "fair"
+    else:
+        # Both JD requires and candidate has experience
         if experience_years >= min_experience_required:
             if experience_years >= min_experience_required * 1.5:
+                experience_bonus = 25
                 experience_match_status = "excellent"
             else:
+                experience_bonus = 15
                 experience_match_status = "good"
         else:
             gap = min_experience_required - experience_years
             if gap > 2:
+                experience_bonus = 0
                 experience_match_status = "poor"
-            else:
+            elif gap > 1:
+                experience_bonus = 5
                 experience_match_status = "fair"
-    else:
-        if experience_years >= 5:
-            experience_match_status = "good"
-        elif experience_years >= 2:
-            experience_match_status = "fair"
-        elif experience_years > 0:
-            experience_match_status = "entry"
-    
-    # Calculate experience bonus
-    experience_bonus = 0.0
-    if experience_years > 0:
-        experience_bonus = min(15, experience_years * 2)
-        if min_experience_required is not None:
-            if experience_years < min_experience_required:
-                gap = min_experience_required - experience_years
-                if gap > 2:
-                    experience_bonus = max(0, experience_bonus - 10)
+            else:
+                experience_bonus = 10
+                experience_match_status = "fair"
     
     # Calculate weighted final score
-    similarity_weight = 0.5
-    skill_weight = 0.3
-    experience_weight = 0.2
+    similarity_weight = 0.25
+    skill_weight = 0.55
+    experience_weight = 0.20
     
     similarity_component = similarity_score * similarity_weight
     skill_component = skill_match_percentage * skill_weight
@@ -3107,9 +3148,9 @@ def _calculate_final_score(
     skill_bonus = skill_match_percentage * 0.30
     
     # Calculate final score using weighted components
-    # Weighted: 50% similarity, 30% skills (based on match %), 20% experience
-    similarity_weight = 0.50
-    skill_weight = 0.30
+    # Weighted: 25% similarity, 55% skills (based on match %), 20% experience
+    similarity_weight = 0.25
+    skill_weight = 0.55
     experience_weight = 0.20
     
     # Normalize experience bonus to 0-100 scale for weighted calculation
