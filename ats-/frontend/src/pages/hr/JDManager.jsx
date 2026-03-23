@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { DocumentTextIcon, PlusIcon, EyeIcon, XMarkIcon, UserIcon, StarIcon, CheckCircleIcon, XCircleIcon, DocumentArrowDownIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { DocumentTextIcon, PlusIcon, EyeIcon, XMarkIcon, UserIcon, StarIcon, CheckCircleIcon, XCircleIcon, DocumentArrowDownIcon, TrashIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 import Header from '../../components/Header';
 import ResumeDetailView from '../../components/ResumeDetailView';
 import AILoadingSpinner from '../../components/AILoadingSpinner';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import api from '../../utils/api';
+import AssessmentEmailModal from '../../components/AssessmentEmailModal';
 
 const JDManager = () => {
   const [jds, setJds] = useState([]);
@@ -28,6 +29,8 @@ const JDManager = () => {
   const [selectedResume, setSelectedResume] = useState(null);
   const [showMatchedResumes, setShowMatchedResumes] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAssessmentEmailModal, setShowAssessmentEmailModal] = useState(false);
+  const [selectedMatchForEmail, setSelectedMatchForEmail] = useState(null);
   const [jdToDelete, setJdToDelete] = useState(null);
 
   useEffect(() => {
@@ -207,6 +210,25 @@ const JDManager = () => {
       console.error('Error downloading resume:', error);
       const errorMessage = error.response?.data?.detail || 'Failed to download resume.';
       alert(errorMessage);
+    }
+  };
+
+  const handleSendAssessmentEmail = async (match) => {
+    try {
+      const cleanResumeId = match.resume_id?.toString().trim().split(':')[0];
+      const response = await api.get(`/api/hr/resumes/${cleanResumeId}`);
+      const resumeData = response.data;
+      const candidateEmail = resumeData?.parsed_data?.email || resumeData?.email || null;
+      setSelectedMatchForEmail({
+        ...match,
+        resume_id: cleanResumeId,
+        jd_id: selectedJD?._id || selectedJD?.id || '',
+        candidate_email: candidateEmail,
+        jd_title: selectedJD?.title || '',
+      });
+      setShowAssessmentEmailModal(true);
+    } catch (error) {
+      alert('Could not fetch candidate details. Please try again.');
     }
   };
 
@@ -881,6 +903,13 @@ const JDManager = () => {
                             <DocumentArrowDownIcon className="w-4 h-4" />
                             <span>Download</span>
                           </button>
+                          <button
+                            onClick={() => handleSendAssessmentEmail(match)}
+                            className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                            <EnvelopeIcon className="w-4 h-4" />
+                            <span>Send Mail</span>
+                          </button>
                         </div>
                       </div>
                     </motion.div>
@@ -955,6 +984,16 @@ const JDManager = () => {
             </div>
           </motion.div>
         </div>
+      )}
+
+      {showAssessmentEmailModal && selectedMatchForEmail && (
+        <AssessmentEmailModal
+          match={selectedMatchForEmail}
+          onClose={() => {
+            setShowAssessmentEmailModal(false);
+            setSelectedMatchForEmail(null);
+          }}
+        />
       )}
     </div>
   );

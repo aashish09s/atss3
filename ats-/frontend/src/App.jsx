@@ -41,6 +41,8 @@ import OfferSignature from './pages/public/OfferSignature';
 import MSA from './pages/hr/MSA';
 import MSASignature from './pages/public/MSASignature';
 import MSASuccess from './pages/MSASuccess';
+import AssessmentForm from './pages/public/AssessmentForm';
+import AssessmentStatus from './pages/hr/AssessmentStatus';
 
 function App() {
   const { isAuthenticated, user, loading, showSessionWarning, sessionTimeLeft, extendSession, logout } = useAuth();
@@ -75,6 +77,7 @@ function App() {
           <Route path="/offer-sign/:token" element={<OfferSignature />} />
           <Route path="/msa-sign/:token" element={<MSASignature />} />
           <Route path="/msa-success" element={<MSASuccess />} />
+          <Route path="/assessment/:token" element={<AssessmentForm />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </ErrorBoundary>
@@ -98,6 +101,7 @@ function App() {
           <Route path="/offer-sign/:token" element={<OfferSignature />} />
           <Route path="/msa-sign/:token" element={<MSASignature />} />
           <Route path="/msa-success" element={<MSASuccess />} />
+          <Route path="/assessment/:token" element={<AssessmentForm />} />
           <Route path="/" element={<DashboardShell />}>
         {/* Superadmin Routes */}
         {user?.role === 'superadmin' && (
@@ -129,6 +133,7 @@ function App() {
             <Route path="hr/clients/:id" element={<ClientDetail />} />
             <Route path="hr/msa" element={<MSA />} />
             <Route path="hr/candidate-onboarding" element={<CandidateOnboarding />} />
+            <Route path="hr/assessment-status" element={<AssessmentStatus />} />
             <Route path="hr/invoice" element={<Invoice />} />
             <Route path="hr/ledger" element={<Ledger />} />
             <Route path="hr/expenses" element={<Expenses />} />
@@ -153,6 +158,7 @@ function App() {
             <Route path="hr/clients/:id" element={<ClientDetail />} />
             <Route path="hr/msa" element={<MSA />} />
             <Route path="hr/candidate-onboarding" element={<CandidateOnboarding />} />
+            <Route path="hr/assessment-status" element={<AssessmentStatus />} />
           </>
         )}
 

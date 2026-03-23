@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     local_upload_dir: str = "./uploads"
     backend_base_url: Optional[str] = None
     frontend_base_url: Optional[str] = None
+    frontend_url: str = "http://localhost:3000"
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

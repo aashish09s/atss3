@@ -19,6 +19,7 @@ import {
   ReceiptRefundIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../store/auth';
 import { useClients } from '../store/clients';
@@ -44,6 +45,7 @@ const Sidebar = ({ onClose }) => {
     { name: 'Client Dashboard', path: '/hr/clients', icon: ChartBarIcon },
     { name: 'MSA', path: '/hr/msa', icon: DocumentCheckIcon },
     { name: 'Candidate Onboarding', path: '/hr/candidate-onboarding', icon: UserPlusIcon },
+    { name: 'Assessment Status', path: '/hr/assessment-status', icon: ClipboardDocumentListIcon },
     { name: 'Invoice', path: '/hr/invoice', icon: ReceiptRefundIcon },
     { name: 'Ledger', path: '/hr/ledger', icon: ReceiptRefundIcon },
     { name: 'Expenses', path: '/hr/expenses', icon: ReceiptRefundIcon },
@@ -68,6 +70,7 @@ const Sidebar = ({ onClose }) => {
     { name: 'Client Dashboard', path: '/hr/clients', icon: ChartBarIcon },
     { name: 'MSA', path: '/hr/msa', icon: DocumentCheckIcon },
     { name: 'Candidate Onboarding', path: '/hr/candidate-onboarding', icon: UserPlusIcon },
+    { name: 'Assessment Status', path: '/hr/assessment-status', icon: ClipboardDocumentListIcon },
   ];
 
   const managerNavItems = [

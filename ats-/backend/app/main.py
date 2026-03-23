@@ -58,6 +58,7 @@ from app.routes.ledger import router as ledger_router
 from app.routes.expenses import router as expenses_router
 from app.routes.offer_signatures import include_offer_signature_routes
 from app.routes.msa import hr_router as msa_hr_router, public_router as msa_public_router
+from app.routes.assessment import router as assessment_router, public_router as assessment_public_router
 # Temporarily disabled due to dependency conflicts
 # from app.routes.resume_matching import router as resume_matching_router
 # from app.routes.skills import router as skills_router
@@ -134,6 +135,8 @@ app.include_router(expenses_router)
 include_offer_signature_routes(app)
 app.include_router(msa_hr_router)
 app.include_router(msa_public_router)
+app.include_router(assessment_router)
+app.include_router(assessment_public_router)
 # Temporarily disabled due to dependency conflicts
 # app.include_router(resume_matching_router)
 # app.include_router(skills_router)
