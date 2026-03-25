@@ -2999,25 +2999,44 @@ def _calculate_final_score(
                 experience_match_status = "fair"
     
     # Calculate weighted final score
-    similarity_weight = 0.25
-    skill_weight = 0.55
-    experience_weight = 0.20
+    # Skills are primary — 70% weight
+    # Experience bonus is additive — not penalizing weight
+    # Similarity is supporting signal — 30% weight
     
-    similarity_component = similarity_score * similarity_weight
+    skill_weight = 0.70
+    similarity_weight = 0.30
+    
     skill_component = skill_match_percentage * skill_weight
-    normalized_experience = min(100, experience_years * 10)  # Normalize to 0-100
-    experience_component = normalized_experience * experience_weight
+    similarity_component = similarity_score * similarity_weight
     
-    final_score = similarity_component + skill_component + experience_component
+    # Base score from skills + similarity
+    final_score = skill_component + similarity_component
     
-    # Additional penalty for candidates who don't meet minimum experience
-    if min_experience_required is not None and min_experience_required > 0:
-        if experience_years < min_experience_required:
+    # Experience: additive bonus ONLY — never reduce score
+    # If JD doesn't require experience — no penalty at all
+    if min_experience_required is None or min_experience_required == 0:
+        # No experience required — give small bonus if candidate has experience
+        if experience_years > 0:
+            exp_bonus = min(10, experience_years * 2)
+            final_score = min(100, final_score + exp_bonus)
+    else:
+        # JD requires experience
+        if experience_years >= min_experience_required:
+            # Candidate meets or exceeds requirement — bonus
+            final_score = min(100, final_score + 10)
+        elif experience_years > 0:
+            # Candidate has some experience but less than required
+            # Small penalty only — don't tank the score
             gap = min_experience_required - experience_years
-            if gap > 2:
-                final_score = min(final_score, 70)
-            elif gap > 1:
-                final_score = min(final_score, 75)
+            if gap <= 1:
+                final_score = min(100, final_score + 5)  # Close enough — small bonus
+            elif gap <= 2:
+                pass  # Neutral — no bonus no penalty
+            else:
+                final_score = max(0, final_score - 5)  # Only small penalty for big gap
+        else:
+            # Zero experience with requirement — small penalty
+            final_score = max(0, final_score - 10)
     
     final_score = max(0, min(100, final_score))
     
