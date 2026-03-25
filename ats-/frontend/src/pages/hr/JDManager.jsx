@@ -29,9 +29,14 @@ const JDManager = () => {
   const [selectedResume, setSelectedResume] = useState(null);
   const [showMatchedResumes, setShowMatchedResumes] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [topPercent, setTopPercent] = useState(null); // null = show all
   const [showAssessmentEmailModal, setShowAssessmentEmailModal] = useState(false);
   const [selectedMatchForEmail, setSelectedMatchForEmail] = useState(null);
   const [jdToDelete, setJdToDelete] = useState(null);
+
+  const displayedResumes = topPercent
+    ? matchedResumes.slice(0, Math.max(1, Math.ceil(matchedResumes.length * topPercent / 100)))
+    : matchedResumes;
 
   useEffect(() => {
     fetchJDs();
@@ -180,6 +185,7 @@ const JDManager = () => {
     setMatchedResumes([]);
     setShowDeleteConfirm(false);
     setJdToDelete(null);
+    setTopPercent(null);
   };
 
   const closeResumeModal = () => {
@@ -757,7 +763,38 @@ const JDManager = () => {
                     <p className="text-gray-500">No resumes match the requirements for this job description.</p>
                   </div>
                 ) : (
-                  matchedResumes.map((match, index) => (
+                  <>
+                    {/* TOP % Filter - only show when results are loaded */}
+                    {!matchesLoading && matchedResumes.length > 0 && (
+                      <div className="flex items-center justify-between mb-4 px-1">
+                        <p className="text-sm text-gray-500">
+                          {matchedResumes.length} resumes found with matching scores
+                          {topPercent && (
+                            <span className="ml-2 text-indigo-600 font-semibold">
+                              — showing top {topPercent}% ({Math.max(1, Math.ceil(matchedResumes.length * topPercent / 100))} resumes)
+                            </span>
+                          )}
+                        </p>
+
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm text-gray-500 font-medium">Show:</span>
+                          <select
+                            value={topPercent ?? 'all'}
+                            onChange={(e) => setTopPercent(e.target.value === 'all' ? null : Number(e.target.value))}
+                            className="border border-indigo-300 rounded-lg px-3 py-1.5 text-sm font-semibold text-indigo-700 bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          >
+                            <option value="all">All Resumes</option>
+                            <option value="10">Top 10%</option>
+                            <option value="20">Top 20%</option>
+                            <option value="25">Top 25%</option>
+                            <option value="50">Top 50%</option>
+                            <option value="75">Top 75%</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {displayedResumes.map((match, index) => (
                     <motion.div
                       key={match.resume_id}
                       initial={{ opacity: 0, y: 20 }}
@@ -914,6 +951,8 @@ const JDManager = () => {
                       </div>
                     </motion.div>
                   ))
+                  }
+                  </>
                 )}
               </div>
             </div>

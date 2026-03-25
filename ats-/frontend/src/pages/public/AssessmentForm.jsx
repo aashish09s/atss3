@@ -165,48 +165,53 @@ const RulesPage = ({ assessmentData, totalSeconds, onStart }) => {
 
 // ─── QUESTIONS PAGE ───────────────────────────────────────────────────────────
 const QuestionsPage = ({ assessmentData, totalSeconds, token, candidateName }) => {
-  const { timeLeft, formatted } = useCountdown(totalSeconds, true);
+  const [questions, setQuestions] = useState([]);
+  const [loadingQ, setLoadingQ] = useState(true);
+  const [answers, setAnswers] = useState({});  // {questionId: selectedOption}
+  const [currentQ, setCurrentQ] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  const [fullName, setFullName] = useState(candidateName || '');
-  const [q1, setQ1] = useState('');
-  const [q2, setQ2] = useState('');
-  const [q3, setQ3] = useState('');
-  const [q4, setQ4] = useState('');
-  const [q5, setQ5] = useState('');
-  const [q6, setQ6] = useState('');
-  const [q7, setQ7] = useState('');
+  // This must come AFTER loadingQ is declared above
+  const { timeLeft, formatted } = useCountdown(totalSeconds, !loadingQ);
 
-  // Auto submit when time runs out
   useEffect(() => {
-    if (timeLeft === 0 && !submitted) {
+    fetchQuestions();
+  }, []);
+
+  useEffect(() => {
+    if (timeLeft === 0 && !submitted && questions.length > 0) {
       handleSubmit(true);
     }
   }, [timeLeft]);
 
-  const handleSubmit = async (autoSubmit = false) => {
-    if (!autoSubmit) {
-      if (!fullName.trim() || !q1 || !q2 || !q3 || !q4 || !q5 || !q6) {
-        setError('Please fill in all required fields before submitting.');
-        return;
-      }
+  const fetchQuestions = async () => {
+    try {
+      setLoadingQ(true);
+      const res = await api.get(`/api/assessment/${token}/questions`);
+      setQuestions(res.data.questions || []);
+    } catch (err) {
+      setError('Failed to load questions. Please refresh the page.');
+    } finally {
+      setLoadingQ(false);
     }
+  };
+
+  const handleAnswer = (questionId, option) => {
+    setAnswers(prev => ({ ...prev, [String(questionId)]: option }));
+  };
+
+  const handleSubmit = async (autoSubmit = false) => {
+    setShowSubmitConfirm(false);
     setSubmitting(true);
     setError('');
     try {
       await api.post(`/api/assessment/${token}/submit`, {
-        full_name: fullName || candidateName,
-        responses: {
-          current_expected_ctc: q1,
-          notice_period: q2,
-          total_experience: q3,
-          relevant_experience: q4,
-          why_interested: q5,
-          available_for_interview: q6,
-          additional_info: q7,
-        }
+        full_name: candidateName,
+        responses: { note: autoSubmit ? 'Auto-submitted on time expiry' : 'Manual submit' },
+        mcq_answers: answers,
       });
       setSubmitted(true);
     } catch (err) {
@@ -215,130 +220,204 @@ const QuestionsPage = ({ assessmentData, totalSeconds, token, candidateName }) =
     }
   };
 
+  const answeredCount = Object.keys(answers).length;
+  const totalQ = questions.length;
+
   if (submitted) return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-2xl shadow-xl p-10 max-w-md w-full text-center"
-      >
+      <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-2xl shadow-xl p-10 max-w-md w-full text-center">
         <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <CheckCircleIcon className="w-12 h-12 text-green-600" />
         </div>
         <h2 className="text-2xl font-bold text-gray-900 mb-3">Assessment Submitted!</h2>
-        <p className="text-gray-500 text-lg">Thank you, <strong>{fullName || candidateName}</strong>!</p>
-        <p className="text-gray-400 mt-2">Our HR team will review your responses and get back to you soon.</p>
+        <p className="text-gray-500 text-lg">Thank you, <strong>{candidateName}</strong>!</p>
+        <p className="text-gray-400 mt-2 text-sm">You answered <strong>{answeredCount}</strong> out of <strong>{totalQ}</strong> questions.</p>
+        <p className="text-gray-400 mt-1 text-sm">Our HR team will review your responses and get back to you soon.</p>
       </motion.div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-purple-50">
-      
-      {/* Sticky Top Bar with Timer + Submit */}
-      <div className="sticky top-0 z-50 shadow-lg bg-gradient-to-r from-indigo-600 to-purple-600">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50">
+
+      {/* Sticky Top Bar */}
+      <div className="sticky top-0 z-50 bg-gradient-to-r from-indigo-600 to-purple-600 shadow-lg">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="text-white text-xs opacity-80">Assessment</p>
+            <p className="text-white text-xs opacity-70">Assessment</p>
             <p className="text-white font-semibold text-sm">{assessmentData?.jd_title}</p>
           </div>
           <div className="text-center">
-            <p className="text-xs font-medium uppercase tracking-wider text-white opacity-70">Time Remaining</p>
+            <p className="text-white text-xs opacity-70 uppercase tracking-wider">Time Remaining</p>
             <p className="text-3xl font-bold font-mono text-white">{formatted}</p>
           </div>
           <button
-            onClick={() => handleSubmit(false)}
+            onClick={() => setShowSubmitConfirm(true)}
             disabled={submitting}
             className="bg-white text-indigo-700 hover:bg-indigo-50 font-bold px-5 py-2 rounded-xl text-sm transition-all disabled:opacity-50 shadow"
           >
-            {submitting ? 'Submitting...' : 'Submit ✓'}
+            {submitting ? 'Submitting...' : 'End Exam ✓'}
           </button>
         </div>
+        {/* Progress bar */}
+        <div className="h-1 bg-indigo-800">
+          <div
+            className="h-1 bg-white transition-all duration-300"
+            style={{ width: `${totalQ > 0 ? (answeredCount / totalQ) * 100 : 0}%` }}
+          />
+        </div>
       </div>
 
-      {/* Questions Form */}
-      <div className="max-w-2xl mx-auto px-4 py-8 space-y-5">
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-            <p className="text-red-600 text-sm">{error}</p>
+      {/* Loading */}
+      {loadingQ ? (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center max-w-sm mx-auto px-4">
+            <div className="w-14 h-14 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-5"></div>
+            <h3 className="text-gray-800 font-semibold text-lg mb-2">Generating Your Questions</h3>
+            <p className="text-gray-500 text-sm leading-relaxed mb-4">
+              AI is preparing {assessmentData?.jd_title} specific questions for you. 
+              This may take up to 60 seconds. Please do not close or refresh the page.
+            </p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+              <p className="text-yellow-700 text-xs font-medium">
+                ⏳ Timer is paused until questions load
+              </p>
+            </div>
           </div>
-        )}
-
-        {/* Full Name */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name <span className="text-red-500">*</span></label>
-          <input type="text" value={fullName} onChange={e => setFullName(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
         </div>
+      ) : (
+        <div className="max-w-3xl mx-auto px-4 py-6">
 
-        {/* Q1 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Current CTC / Expected CTC <span className="text-red-500">*</span></label>
-          <input type="text" value={q1} onChange={e => setQ1(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-            placeholder="e.g. Current: 8 LPA / Expected: 12 LPA" />
+          {/* Question Navigator */}
+          <div className="bg-white rounded-2xl shadow-sm p-4 mb-6">
+            <p className="text-xs text-gray-500 font-medium mb-3">
+              Questions: {answeredCount}/{totalQ} answered
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {questions.map((q, idx) => (
+                <button
+                  key={q.id}
+                  onClick={() => setCurrentQ(idx)}
+                  className={`w-9 h-9 rounded-lg text-xs font-bold transition-all ${
+                    currentQ === idx
+                      ? 'bg-indigo-600 text-white ring-2 ring-indigo-300'
+                      : answers[String(q.id)]
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {idx + 1}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center space-x-4 mt-3 text-xs text-gray-400">
+              <span className="flex items-center space-x-1"><span className="w-3 h-3 rounded bg-green-500 inline-block"></span><span>Answered</span></span>
+              <span className="flex items-center space-x-1"><span className="w-3 h-3 rounded bg-gray-200 inline-block"></span><span>Not Answered</span></span>
+              <span className="flex items-center space-x-1"><span className="w-3 h-3 rounded bg-indigo-600 inline-block"></span><span>Current</span></span>
+            </div>
+          </div>
+
+          {/* Current Question */}
+          {questions[currentQ] && (
+            <motion.div
+              key={currentQ}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white rounded-2xl shadow-sm p-6 mb-6"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                  Question {currentQ + 1} of {totalQ}
+                </span>
+                {questions[currentQ].topic && (
+                  <span className="text-xs text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                    {questions[currentQ].topic}
+                  </span>
+                )}
+              </div>
+              <p className="text-gray-900 font-medium text-base leading-relaxed mb-6">
+                {questions[currentQ].question}
+              </p>
+              <div className="space-y-3">
+                {Object.entries(questions[currentQ].options || {}).map(([key, value]) => (
+                  <button
+                    key={key}
+                    onClick={() => handleAnswer(questions[currentQ].id, key)}
+                    className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all text-sm font-medium ${
+                      answers[String(questions[currentQ].id)] === key
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-900'
+                        : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 text-gray-700'
+                    }`}
+                  >
+                    <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold mr-3 ${
+                      answers[String(questions[currentQ].id)] === key
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 text-gray-600'
+                    }`}>{key}</span>
+                    {value}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Navigation buttons */}
+          <div className="flex justify-between">
+            <button
+              onClick={() => setCurrentQ(q => Math.max(0, q - 1))}
+              disabled={currentQ === 0}
+              className="px-6 py-3 border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all"
+            >
+              ← Previous
+            </button>
+            {currentQ < totalQ - 1 ? (
+              <button
+                onClick={() => setCurrentQ(q => Math.min(totalQ - 1, q + 1))}
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-all"
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowSubmitConfirm(true)}
+                className="px-6 py-3 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 transition-all"
+              >
+                Finish & Submit ✓
+              </button>
+            )}
+          </div>
+
+          {error && <p className="text-red-500 text-sm mt-4 text-center">{error}</p>}
         </div>
+      )}
 
-        {/* Q2 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Notice Period <span className="text-red-500">*</span></label>
-          <select value={q2} onChange={e => setQ2(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white">
-            <option value="">Select notice period</option>
-            <option>Immediate / Currently serving notice</option>
-            <option>15 days</option>
-            <option>30 days</option>
-            <option>45 days</option>
-            <option>60 days</option>
-            <option>90 days</option>
-          </select>
+      {/* Submit Confirmation Modal */}
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl p-8 max-w-sm w-full text-center shadow-2xl">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ExclamationTriangleIcon className="w-8 h-8 text-yellow-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Submit Assessment?</h3>
+            <p className="text-gray-500 text-sm mb-2">You have answered <strong>{answeredCount}</strong> out of <strong>{totalQ}</strong> questions.</p>
+            {answeredCount < totalQ && (
+              <p className="text-orange-500 text-xs mb-4">{totalQ - answeredCount} question(s) unanswered. You cannot change answers after submitting.</p>
+            )}
+            <div className="flex space-x-3 mt-6">
+              <button onClick={() => setShowSubmitConfirm(false)}
+                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-50">
+                Go Back
+              </button>
+              <button onClick={() => handleSubmit(false)} disabled={submitting}
+                className="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                {submitting ? 'Submitting...' : 'Yes, Submit'}
+              </button>
+            </div>
+          </motion.div>
         </div>
-
-        {/* Q3 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Total Work Experience <span className="text-red-500">*</span></label>
-          <input type="text" value={q3} onChange={e => setQ3(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-            placeholder="e.g. 3 years 6 months" />
-        </div>
-
-        {/* Q4 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Relevant Experience for <em>{assessmentData?.jd_title}</em> Role <span className="text-red-500">*</span>
-          </label>
-          <input type="text" value={q4} onChange={e => setQ4(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-            placeholder="e.g. 2 years in relevant field" />
-        </div>
-
-        {/* Q5 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Why are you interested in this role? <span className="text-red-500">*</span></label>
-          <textarea value={q5} onChange={e => setQ5(e.target.value)} rows={4}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none"
-            placeholder="Share your motivation..." />
-        </div>
-
-        {/* Q6 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">Available for Interview? <span className="text-red-500">*</span></label>
-          <input type="text" value={q6} onChange={e => setQ6(e.target.value)}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-            placeholder="e.g. Weekdays after 5 PM" />
-        </div>
-
-        {/* Q7 */}
-        <div className="bg-white rounded-2xl shadow-sm p-6">
-          <label className="block text-sm font-semibold text-gray-700 mb-2">
-            Anything else you'd like to share? <span className="text-gray-400 font-normal">(Optional)</span>
-          </label>
-          <textarea value={q7} onChange={e => setQ7(e.target.value)} rows={3}
-            className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm resize-none"
-            placeholder="Any other relevant information..." />
-        </div>
-
-      </div>
+      )}
     </div>
   );
 };

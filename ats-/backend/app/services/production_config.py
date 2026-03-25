@@ -45,7 +45,7 @@ class ProductionAIConfig:
         """Get optimized settings for production"""
         return {
             "ollama_timeout": cls.OLLAMA_TIMEOUT,
-            "ollama_max_tokens": 50,
+            "ollama_max_tokens": 2000,
             "ollama_temperature": 0.0,
             "ollama_top_p": 0.3,
             "max_cache_size": cls.MAX_CACHE_SIZE,

@@ -16,6 +16,67 @@ except ImportError:
     print("[WARNING] faiss library not available - some features may be limited")
 import numpy as np
 
+def robust_json_parse(text: str):
+    """Try multiple methods to parse potentially malformed JSON"""
+    text = text.strip()
+    
+    # Remove markdown code blocks
+    text = re.sub(r'^```json\s*', '', text)
+    text = re.sub(r'^```\s*', '', text)
+    text = re.sub(r'\s*```$', '', text)
+    text = text.strip()
+    
+    # Method 1: Direct parse
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    
+    # Method 2: Find JSON object boundaries
+    try:
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1:
+            return json.loads(text[start:end+1])
+    except Exception:
+        pass
+    
+    # Method 3: Fix trailing commas and try again
+    try:
+        start = text.find('{')
+        end = text.rfind('}')
+        if start != -1 and end != -1:
+            fixed = text[start:end+1]
+            # Remove trailing commas before ] or }
+            fixed = re.sub(r',\s*([}\]])', r'\1', fixed)
+            return json.loads(fixed)
+    except Exception:
+        pass
+    
+    # Method 4: If JSON is cut off, try to close it
+    try:
+        start = text.find('{')
+        if start != -1:
+            partial = text[start:]
+            # Count unclosed brackets
+            open_braces = partial.count('{') - partial.count('}')
+            open_brackets = partial.count('[') - partial.count(']')
+            # Remove last incomplete line
+            lines = partial.rsplit('\n', 1)
+            if len(lines) > 1:
+                partial = lines[0]
+            # Remove trailing comma
+            partial = partial.rstrip().rstrip(',')
+            # Close open arrays and objects
+            partial += ']' * open_brackets + '}' * open_braces
+            # Fix trailing commas
+            partial = re.sub(r',\s*([}\]])', r'\1', partial)
+            return json.loads(partial)
+    except Exception:
+        pass
+    
+    return None
+
 # Global model cache for faster processing
 _sbert_model = None
 _vectorizer = None
@@ -78,9 +139,10 @@ def _build_jd_ollama_prompt(jd_text: str) -> str:
         "}\n\n"
         "Rules:\n"
         "- Put ONE skill per element in the skills array. Do not join multiple skills in a single string.\n"
-        "- Include both tools/technologies AND domain/process skills if the JD mentions them.\n"
+        '- Include both tools/technologies AND domain/process skills if the JD mentions them.\n'
         '  Examples: "Data Analysis", "Data Preprocessing", "Feature Engineering", "Exploratory Data Analysis",\n'
         '  "Data Visualization", "Statistical Analysis", "Predictive Modeling", "Model Evaluation", "ETL", "Data Cleaning".\n'
+        '- Return skill names only, without parentheses or descriptions in brackets.\n'
         '- Always return valid JSON (double quotes, no trailing commas, no comments in the actual JSON).\n'
         "- If you are unsure of a value, keep it empty string or null instead of guessing wildly.\n\n"
         "Before finalizing the skills list, review all extracted skills and remove semantic duplicates — skills that mean the same thing even if written differently.\n" 
@@ -94,7 +156,9 @@ def _build_jd_ollama_prompt(jd_text: str) -> str:
         "JD TEXT:\n"
         "--------------------\n"
         f"{jd_snippet}\n"
-        "--------------------\n"
+        "--------------------\n\n"
+        "CRITICAL: Your response must be valid JSON only. No trailing commas. No comments. \n"
+        "Close all arrays and objects properly. End with a closing brace }."
     )
 
 
@@ -1278,9 +1342,14 @@ def parse_text_with_spacy_heuristic(text: str, parse_type: str) -> Dict[Any, Any
                             min_experience = 5.0
                             print(f"[JD PARSE] Detected senior level from text: {experience}")
                         else:
-                            # Use the text as-is if we can't parse numbers
-                            experience = exp_level_text.title()
-                            print(f"[JD PARSE] Using Experience Level text as-is: {experience}")
+                            # If text is too long (more than 60 chars), it's not a valid experience field
+                            # Set to Not specified instead of dumping entire JD text
+                            if len(exp_level_text) > 60:
+                                experience = "Not specified"
+                                print(f"[JD PARSE] Experience text too long, ignoring: {exp_level_text[:50]}...")
+                            else:
+                                experience = exp_level_text.title()
+                                print(f"[JD PARSE] Using Experience Level text as-is: {experience}")
         
         # Extract location
         location = "Not specified"
@@ -1576,28 +1645,12 @@ async def parse_jd_with_ollama(text: str) -> Optional[Dict[Any, Any]]:
             print("[JD OLLAMA] Empty response from model")
             return None
 
-        # Try direct JSON parse first
-        text_clean = raw.strip()
-        try:
-            result = json.loads(text_clean)
-        except json.JSONDecodeError:
-            # Strip markdown fences if present
-            if "```json" in text_clean:
-                start = text_clean.find("```json") + 7
-                end = text_clean.find("```", start)
-                json_block = text_clean[start:end if end > start else None].strip()
-            elif "```" in text_clean:
-                start = text_clean.find("```") + 3
-                end = text_clean.find("```", start)
-                json_block = text_clean[start:end if end > start else None].strip()
-            else:
-                json_block = text_clean
-
-            try:
-                result = json.loads(json_block)
-            except json.JSONDecodeError as e:
-                print(f"[JD OLLAMA] JSON decode failed: {e}. First 300 chars: {repr(json_block[:300])}")
-                return None
+        # Try robust JSON parsing
+        result = robust_json_parse(raw)
+        
+        if not result:
+            print("[JD OLLAMA] Robust JSON parsing failed, no result returned")
+            return None
 
         if not isinstance(result, dict):
             print(f"[JD OLLAMA] Parsed JSON is not an object: {type(result)}")
@@ -1653,16 +1706,87 @@ async def parse_jd_with_ollama(text: str) -> Optional[Dict[Any, Any]]:
 async def parse_job_description(text: str) -> Dict[Any, Any]:
     """
     Parse job description.
-
     Priority:
-    1. Use heuristic parser (fast + reliable).
+    1. Ollama (AI - better quality, 60s timeout)
+    2. Heuristic fallback (fast)
     """
-    # Heuristic is primary — fast and reliable
-    print("[JD PARSE] Using heuristic JD parser (primary)")
+    # Try Ollama first if available
+    if OLLAMA_AVAILABLE and settings.ollama_enabled:
+        try:
+            import httpx
+            prompt = f"""Extract information from this job description and return ONLY valid JSON.
+No trailing commas. Close all brackets properly.
+
+Job Description:
+{text[:3000]}
+
+Return this exact JSON structure:
+{{
+  "title": "job title",
+  "skills": ["skill1", "skill2"],
+  "experience": "X years or Not specified",
+  "location": "location or Remote",
+  "education": "degree requirement or Not specified",
+  "job_type": "Full-time/Part-time/Contract",
+  "salary": "salary range or Not specified"
+}}
+
+IMPORTANT: skills should be short names only, no parentheses."""
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{settings.ollama_base_url}/api/generate",
+                    json={
+                        "model": settings.ollama_model_name,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.1,
+                            "num_predict": 1000,
+                        }
+                    }
+                )
+                if response.status_code == 200:
+                    raw = response.json().get("response", "")
+                    # Robust JSON parsing
+                    import re
+                    raw = raw.strip()
+                    raw = re.sub(r'^```json\s*', '', raw)
+                    raw = re.sub(r'^```\s*', '', raw)
+                    raw = re.sub(r'\s*```$', '', raw)
+                    # Try direct parse
+                    try:
+                        start = raw.find('{')
+                        end = raw.rfind('}')
+                        if start != -1 and end != -1:
+                            chunk = raw[start:end+1]
+                            chunk = re.sub(r',\s*([}\]])', r'\1', chunk)
+                            parsed = json.loads(chunk)
+                            if parsed.get("skills"):
+                                print("[JD PARSE] Ollama JD parse success")
+                                # Clean skill names - remove parentheses
+                                parsed["skills"] = [
+                                    re.sub(r'\s*\(.*?\)\s*', '', s).strip() 
+                                    for s in parsed.get("skills", []) if s
+                                ]
+                                return parsed
+                    except Exception as e:
+                        print(f"[JD PARSE] Ollama JSON parse failed: {e}")
+        except Exception as e:
+            print(f"[JD PARSE] Ollama JD parse error: {e}")
+
+    # Fallback to heuristic
+    print("[JD PARSE] Using heuristic JD parser (fallback)")
     result = parse_text_with_spacy_heuristic(text, "jd")
     if result.get("skills"):
         from app.services.parse_store import deduplicate_skills
         result["skills"] = deduplicate_skills(result["skills"])
+    # Clean skill parentheses in heuristic results too
+    import re
+    result["skills"] = [
+        re.sub(r'\s*\(.*?\)\s*', '', s).strip() 
+        for s in result.get("skills", []) if s
+    ]
     return result
 
 

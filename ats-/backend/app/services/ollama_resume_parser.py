@@ -65,7 +65,7 @@ JSON SCHEMA (follow exactly)
     "soft": [],
     "languages": [],
     "domain": []
-  },
+  }, // IMPORTANT: Return only the core skill name without any parenthetical descriptions. For example write 'NLP' not 'NLP (NLTK / SpaCy)', write 'SQL' not 'SQL (Data Querying)'
   "certifications": [
     {
       "name": "Certification name",
@@ -181,29 +181,6 @@ Extract "summary" ONLY from these sources (in priority order):
 #     "soft": [],
 #     "languages": []
 #   },
-#   "certifications": []
-# }
-# RULES: In each skills array use ONE skill per array element. Do not put multiple skills in one string.
-# Good: ["Python", "C", "NumPy", "Data Analysis"]. Bad: ["Python, C", "NumPy, Pandas, Data Analysis"].
-# RULES: Put personal/capstone projects ONLY in "projects". Use "experience" only for real jobs/internships with a company/employer.
-# RULES: Skills must include both tools/technologies AND domain/process skills when present in the resume.
-# Examples of domain/process skills to include as SEPARATE skills if mentioned anywhere in the resume text (summary, projects, experience, skills section, etc.):
-# - "Machine Learning"
-# - "Deep Learning"
-# - "Data Analysis"
-# - "Data Preprocessing"
-# - "Feature Engineering"
-# - "Exploratory Data Analysis (EDA)"
-# - "Data Visualization"
-# - "Statistical Analysis"
-# - "Predictive Modeling"
-# - "Model Evaluation"
-# - "Time Series Analysis"
-# - "Natural Language Processing (NLP)"
-# - "Computer Vision"
-# - "ETL"
-# - "Data Cleaning"
-# """
 
 
 def _extract_json(text: str) -> Dict[str, Any]:

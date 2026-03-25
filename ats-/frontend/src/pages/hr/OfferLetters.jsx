@@ -918,126 +918,136 @@ const OfferLetters = () => {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-lg max-w-md w-full p-6"
+            className="bg-white rounded-xl w-full max-w-lg mx-4 flex flex-col" 
+            style={{ maxHeight: '85vh' }}
           >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Send Offer Letter</h3>
-              <button
-                onClick={() => {
-                  setShowSendModal(false);
-                  setEnableESign(true);
-                  setHrSignatureFile(null);
-                  setHrStampFile(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <XMarkIcon className="h-6 w-6" />
-              </button>
+            {/* Header - Fixed at top */}
+            <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-gray-100">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-semibold text-gray-900">Send Offer Letter</h3>
+                <button
+                  onClick={() => {
+                    setShowSendModal(false);
+                    setEnableESign(true);
+                    setHrSignatureFile(null);
+                    setHrStampFile(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XMarkIcon className="h-6 w-6" />
+                </button>
+              </div>
             </div>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Candidate Name *
-                </label>
-                <input
-                  type="text"
-                  value={candidateName}
-                  onChange={(e) => setCandidateName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter candidate's full name"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Candidate Email *
-                </label>
-                <input
-                  type="email"
-                  value={candidateEmail}
-                  onChange={(e) => setCandidateEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="candidate@email.com"
-                  required
-                />
-              </div>
-              
-              <div className="flex items-start space-x-3 border border-blue-200 bg-blue-50 rounded-lg p-4">
-                <input
-                  id="enable-esign"
-                  type="checkbox"
-                  checked={enableESign}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setEnableESign(checked);
-                    if (!checked) {
-                      setHrSignatureFile(null);
-                      setHrStampFile(null);
-                    }
-                  }}
-                  className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="enable-esign" className="text-sm font-medium text-blue-900">
-                    Enable digital acceptance & e-signature workflow
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Candidate Name *
                   </label>
-                  <p className="text-xs text-blue-800 mt-1">
-                    When enabled, the candidate receives a secure link to view, sign, and upload their signature/stamp.
-                    A signed PDF will be generated and emailed to both sides automatically.
-                  </p>
+                  <input
+                    type="text"
+                    value={candidateName}
+                    onChange={(e) => setCandidateName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter candidate's full name"
+                    required
+                  />
                 </div>
-              </div>
-              
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">Email Preview</h4>
-                <p className="text-sm text-blue-800">
-                  <strong>Subject:</strong> Offer Letter - {currentTemplate.position} at {currentTemplate.company_name}
-                </p>
-                <p className="text-sm text-blue-800 mt-1">
-                  <strong>From:</strong> {currentTemplate.hr_name} ({currentTemplate.hr_email})
-                </p>
-                <p className="text-sm text-blue-800 mt-1">
-                  <strong>To:</strong> {candidateName} ({candidateEmail})
-                </p>
-              </div>
-
-              {enableESign && (
-                <div className="space-y-4 border border-blue-100 bg-blue-50/60 rounded-lg p-4">
-                  <h4 className="font-medium text-blue-900">HR Authorization Assets</h4>
-                  <p className="text-xs text-blue-800">
-                    Upload your pre-approved signature and optional company stamp. These will be embedded in the final signed PDF alongside the candidate&apos;s signature.
-                  </p>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Candidate Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={candidateEmail}
+                    onChange={(e) => setCandidateEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="candidate@email.com"
+                    required
+                  />
+                </div>
+                
+                <div className="flex items-start space-x-3 border border-blue-200 bg-blue-50 rounded-lg p-4">
+                  <input
+                    id="enable-esign"
+                    type="checkbox"
+                    checked={enableESign}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setEnableESign(checked);
+                      if (!checked) {
+                        setHrSignatureFile(null);
+                        setHrStampFile(null);
+                      }
+                    }}
+                    className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      HR Signature (PNG/JPG)
+                    <label htmlFor="enable-esign" className="text-sm font-medium text-blue-900">
+                      Enable digital acceptance & e-signature workflow
                     </label>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      onChange={(e) => setHrSignatureFile(e.target.files?.[0] || null)}
-                      className="w-full text-sm text-gray-600"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      For best results, use a transparent PNG file of the official signature.
+                    <p className="text-xs text-blue-800 mt-1">
+                      When enabled, the candidate receives a secure link to view, sign, and upload their signature/stamp.
+                      A signed PDF will be generated and emailed to both sides automatically.
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Company Stamp (optional)
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      onChange={(e) => setHrStampFile(e.target.files?.[0] || null)}
-                      className="w-full text-sm text-gray-600"
-                    />
-                  </div>
                 </div>
-              )}
-              
-              <div className="flex space-x-3 pt-4">
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-900 mb-2">Email Preview</h4>
+                  <p className="text-sm text-blue-800">
+                    <strong>Subject:</strong> Offer Letter - {currentTemplate.position} at {currentTemplate.company_name}
+                  </p>
+                  <p className="text-sm text-blue-800 mt-1">
+                    <strong>From:</strong> {currentTemplate.hr_name} ({currentTemplate.hr_email})
+                  </p>
+                  <p className="text-sm text-blue-800 mt-1">
+                    <strong>To:</strong> {candidateName} ({candidateEmail})
+                  </p>
+                </div>
+
+                {enableESign && (
+                  <div className="space-y-4 border border-blue-100 bg-blue-50/60 rounded-lg p-4">
+                    <h4 className="font-medium text-blue-900">HR Authorization Assets</h4>
+                    <p className="text-xs text-blue-800">
+                      Upload your pre-approved signature and optional company stamp. These will be embedded in the final signed PDF alongside the candidate&apos;s signature.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        HR Signature (PNG/JPG)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        onChange={(e) => setHrSignatureFile(e.target.files?.[0] || null)}
+                        className="w-full text-sm text-gray-600"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        For best results, use a transparent PNG file of the official signature.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Stamp (optional)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        onChange={(e) => setHrStampFile(e.target.files?.[0] || null)}
+                        className="w-full text-sm text-gray-600"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer - Fixed at bottom */}
+            <div className="flex-shrink-0 px-6 py-4 border-t border-gray-100 bg-white">
+              <div className="flex space-x-3">
                 <button
                   onClick={() => {
                     setShowSendModal(false);

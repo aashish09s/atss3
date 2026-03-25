@@ -7,8 +7,10 @@ from app.db.mongo import get_db
 from app.deps_rbac import require_roles
 from app.core.config import settings
 from app.services.email_service import send_email
+from app.services.mcq_generator import generate_mcqs_with_ollama, generate_mcqs_with_gemini, get_fallback_mcqs
 import secrets
 import hashlib
+import asyncio
 
 router = APIRouter(prefix="/api/hr/assessments", tags=["Assessments"])
 public_router = APIRouter(prefix="/api/assessment", tags=["Assessment Public"])
@@ -32,6 +34,7 @@ class SendAssessmentRequest(BaseModel):
 class AssessmentSubmitRequest(BaseModel):
     full_name: str
     responses: Dict[str, Any]
+    mcq_answers: Optional[Dict[str, str]] = None  # {question_id: selected_option}
     additional_notes: Optional[str] = None
 
 
@@ -219,6 +222,80 @@ async def get_assessment_public(token: str, db=Depends(get_db)):
     }
 
 
+@public_router.get("/{token}/questions")
+async def get_assessment_questions(token: str, db=Depends(get_db)):
+    """Get MCQ questions for assessment — generated from JD"""
+    token_hash = _hash_token(token)
+    doc = await db["assessments"].find_one({"token_hash": token_hash})
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Assessment link is invalid.")
+    if doc.get("status") == "completed":
+        raise HTTPException(status_code=400, detail="Assessment already completed.")
+    
+    # Check if questions already generated and cached
+    if doc.get("mcq_questions"):
+        return {"questions": doc["mcq_questions"]}
+    
+    # Fetch JD details
+    jd_title = doc.get("jd_title", "")
+    jd_description = ""
+    try:
+        jd_doc = await db["job_descriptions"].find_one({"_id": ObjectId(doc["jd_id"])})
+        if jd_doc:
+            jd_description = jd_doc.get("description_text", "") or jd_doc.get("raw_text", "") or ""
+    except Exception:
+        pass
+    
+    # Generate MCQs — try Ollama first, then Gemini, then fallback
+    questions = []
+    
+    # Try Ollama
+    try:
+        loop = asyncio.get_event_loop()
+        questions = await asyncio.wait_for(
+            loop.run_in_executor(
+                None, generate_mcqs_with_ollama, jd_title, jd_description, 10
+            ),
+            timeout=200.0  # 200 second max wait for Ollama
+        )
+    except asyncio.TimeoutError:
+        print("[MCQ] Ollama timed out after 90s — trying Gemini")
+        questions = []
+    except Exception as e:
+        print(f"[MCQ] Ollama failed: {e}")
+        questions = []
+    
+    # Try Gemini if Ollama failed
+    if not questions:
+        try:
+            questions = await generate_mcqs_with_gemini(jd_title, jd_description, 10)
+        except Exception as e:
+            print(f"[MCQ] Gemini failed: {e}")
+    
+    # Use fallback if both failed
+    if not questions:
+        questions = get_fallback_mcqs(jd_title, 10)
+    
+    # Cache questions in DB so same questions shown on reload
+    await db["assessments"].update_one(
+        {"token_hash": token_hash},
+        {"$set": {"mcq_questions": questions, "updated_at": datetime.now(timezone.utc)}}
+    )
+    
+    # Return questions WITHOUT correct answers (security)
+    safe_questions = []
+    for q in questions:
+        safe_questions.append({
+            "id": q.get("id"),
+            "question": q.get("question"),
+            "options": q.get("options"),
+            "topic": q.get("topic", ""),
+        })
+    
+    return {"questions": safe_questions}
+
+
 @public_router.post("/{token}/submit")
 async def submit_assessment(
     token: str,
@@ -234,6 +311,19 @@ async def submit_assessment(
     if doc.get("status") == "completed":
         raise HTTPException(status_code=400, detail="Assessment already submitted.")
     
+    # Score MCQ answers
+    mcq_score = None
+    mcq_result = None
+    if body.mcq_answers and doc.get("mcq_questions"):
+        correct = 0
+        total = len(doc["mcq_questions"])
+        for q in doc["mcq_questions"]:
+            qid = str(q.get("id"))
+            if body.mcq_answers.get(qid) == q.get("correct_answer"):
+                correct += 1
+        mcq_score = round((correct / total) * 100) if total > 0 else 0
+        mcq_result = {"correct": correct, "total": total, "percentage": mcq_score}
+    
     # Save responses
     await db["assessments"].update_one(
         {"token_hash": token_hash},
@@ -245,6 +335,9 @@ async def submit_assessment(
                 "responses": body.responses,
                 "additional_notes": body.additional_notes,
             },
+            "mcq_answers": body.mcq_answers,
+            "mcq_score": mcq_score,
+            "mcq_result": mcq_result,
             "updated_at": datetime.now(timezone.utc),
         }}
     )

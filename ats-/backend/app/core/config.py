@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     ollama_model_name: str = "qwen2.5:1.5b"
     ollama_enabled: bool = False  # Disabled to prevent timeout issues, use enhanced fallback
     ollama_timeout: int = 5  # 5 second timeout to prevent background processing
-    ollama_max_tokens: int = 50  # Minimal tokens for JSON response only
+    ollama_max_tokens: int = 2000  # Increased for better JD parsing responses
     ollama_temperature: float = 0.0  # No randomness for consistency
     ollama_top_p: float = 0.3  # Lower for faster generation
     
